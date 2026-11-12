@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import { addDays, dayKey, formatMonth, shiftMonth, todayKey } from '../lib/format'
 import { cityColor, itemLabel } from '../lib/itemTypes'
-import type { Item, Selection } from '../types'
+import type { Item, ItemInput, Selection } from '../types'
 
 interface Props {
   month: string // YYYY-MM
   onMonthChange: (month: string) => void
   items: Item[]
+  /** Unsaved suggestions, drawn faded. */
+  drafts?: ItemInput[]
   selection: Selection | null
   /** Check-in day picked, waiting for the check-out click. */
   pendingStart: string | null
@@ -32,14 +34,24 @@ interface DayInfo {
   nights: Item[] // hotels whose night starts on this day
   flights: Item[]
   others: Item[]
+  draftNights: ItemInput[]
+  draftFlights: ItemInput[]
 }
 
-function indexByDay(items: Item[]): Map<string, DayInfo> {
+function indexByDay(items: Item[], drafts: ItemInput[]): Map<string, DayInfo> {
   const days = new Map<string, DayInfo>()
   const get = (day: string) => {
     let info = days.get(day)
-    if (!info) days.set(day, (info = { nights: [], flights: [], others: [] }))
+    if (!info) days.set(day, (info = { nights: [], flights: [], others: [], draftNights: [], draftFlights: [] }))
     return info
+  }
+  for (const draft of drafts) {
+    const start = dayKey(draft.start_datetime)
+    if (draft.type === 'hotel' && draft.end_datetime) {
+      for (let day = start; day < dayKey(draft.end_datetime); day = addDays(day, 1)) get(day).draftNights.push(draft)
+    } else if (draft.type === 'flight') {
+      get(start).draftFlights.push(draft)
+    }
   }
   for (const item of items) {
     const start = dayKey(item.start_datetime)
@@ -55,8 +67,8 @@ function indexByDay(items: Item[]): Map<string, DayInfo> {
   return days
 }
 
-export default function Calendar({ month, onMonthChange, items, selection, pendingStart, onDayClick, onItemClick }: Props) {
-  const byDay = useMemo(() => indexByDay(items), [items])
+export default function Calendar({ month, onMonthChange, items, drafts = [], selection, pendingStart, onDayClick, onItemClick }: Props) {
+  const byDay = useMemo(() => indexByDay(items, drafts), [items, drafts])
   const [hover, setHover] = useState<string | null>(null)
   const today = todayKey()
 
@@ -102,6 +114,9 @@ export default function Calendar({ month, onMonthChange, items, selection, pendi
                   {Number(day.slice(8))}
                 </span>
                 <span className="flex gap-0.5">
+                  {info?.draftFlights.map((f, i) => (
+                    <span key={`draft-${i}`} title={`Suggested flight ${itemLabel(f)}`} className="text-sm leading-none opacity-40">✈️</span>
+                  ))}
                   {info?.flights.map((f) => (
                     <button key={f.id} type="button" title={`Flight ${itemLabel(f)}`}
                       onClick={(e) => { if (!pendingStart) { e.stopPropagation(); onItemClick(f.id) } }}
@@ -120,6 +135,19 @@ export default function Calendar({ month, onMonthChange, items, selection, pendi
               </div>
 
               <div className="absolute inset-x-0 bottom-1 space-y-0.5">
+                {info?.draftNights.map((draft, i) => {
+                  const first = day === dayKey(draft.start_datetime)
+                  return (
+                    // Not clickable: clicks go to the day underneath.
+                    <div key={`draft-${i}`} title={`Suggested: ${itemLabel(draft)}`}
+                      style={{ borderColor: cityColor(draft.city), color: cityColor(draft.city) }}
+                      className={`pointer-events-none h-5 truncate border border-dashed bg-white/70 px-1 text-[11px] leading-[1.125rem] font-medium ${
+                        first ? 'ml-1 rounded-l-md' : ''
+                      }`}>
+                      {first || index % 7 === 0 ? `${draft.city} ?` : '\u00a0'}
+                    </div>
+                  )
+                })}
                 {info?.nights.map((hotel) => {
                   const checkIn = dayKey(hotel.start_datetime)
                   const lastNight = addDays(dayKey(hotel.end_datetime!), -1)

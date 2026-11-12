@@ -59,6 +59,19 @@ using [AeroDataBox](https://rapidapi.com/aedbx-aedbx/api/aerodatabox) on RapidAP
 Lookups are cached in the database, so looking up the same flight and date again
 does not use your quota. Without a key everything else still works.
 
+## Optional: plan with Gemini
+
+"✨ Plan with Gemini" suggests stays, flights and other costs for a request like
+"10 days in Japan after Shanghai, 3 cities". Suggestions appear as faded drafts in the
+calendar; nothing is saved until you click Add.
+
+1. Create a key at https://aistudio.google.com/apikey.
+2. Paste it after `GEMINI_API_KEY=` in `backend/.env` and restart the backend.
+   Optionally set `GEMINI_MODEL` (default `gemini-3.8-flash`).
+
+Each plan sends your recent and upcoming notes (cities, dates, costs) to Google. Prices
+in suggestions are estimates.
+
 ## Optional: better hotel search (Google Places)
 
 The 🔎 button next to the hotel name uses OpenStreetMap by default, which misses some

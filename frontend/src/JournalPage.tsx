@@ -4,6 +4,7 @@ import Calendar from './components/Calendar'
 import EntryForm, { type EntryPreset } from './components/EntryForm'
 import JourneyList from './components/JourneyList'
 import Modal from './components/Modal'
+import PlanPanel, { type Draft } from './components/PlanPanel'
 import { CityList, CostOverview } from './components/Overview'
 import TravelMap from './components/TravelMap'
 import {
@@ -29,7 +30,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'costs', label: 'Costs' },
 ]
 
-type Editor = { item: Item } | { preset: EntryPreset }
+type Editor = { item: Item } | { preset: EntryPreset } | { draft: Draft }
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -46,6 +47,10 @@ export default function JournalPage() {
   const [error, setError] = useState<string | null>(null)
   const [year, setYear] = useState<number | null>(null)
   const [defaultCurrency, setDefaultCurrency] = useState('CHF')
+  const [planEnabled, setPlanEnabled] = useState(false)
+  const [planOpen, setPlanOpen] = useState(false)
+  const [drafts, setDrafts] = useState<Draft[]>([])
+  const [planSummary, setPlanSummary] = useState<string | null>(null)
 
   const [month, setMonth] = useState(todayKey().slice(0, 7))
   const [pendingStart, setPendingStart] = useState<string | null>(null)
@@ -69,7 +74,10 @@ export default function JournalPage() {
   }, [reload])
 
   useEffect(() => {
-    api.features().then((f) => setDefaultCurrency(f.default_currency)).catch(() => {})
+    api.features().then((f) => {
+      setDefaultCurrency(f.default_currency)
+      setPlanEnabled(f.plan)
+    }).catch(() => {})
   }, [])
 
   const itemsById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
@@ -101,11 +109,27 @@ export default function JournalPage() {
     setEditor({ preset })
   }
 
+  const draftEntries = useMemo(() => drafts.map((d) => d.entry), [drafts])
+
+  function onPlanned(summary: string, next: Draft[]) {
+    setDrafts(next)
+    setPlanSummary(summary || null)
+    if (next[0]) setMonth(monthKey(next[0].entry.start_datetime))
+  }
+
+  async function addDraft(draft: Draft) {
+    const saved = await api.createItem(draft.entry)
+    setDrafts((ds) => ds.filter((d) => d.key !== draft.key))
+    await reload()
+    setSelection({ id: saved.id, source: 'calendar' })
+  }
+
   async function save(input: ItemInput) {
     const saved = editor && 'item' in editor
       ? await api.updateItem(editor.item.id, input)
       : await api.createItem(input)
     rememberCurrency(saved.currency)
+    if (editor && 'draft' in editor) setDrafts((ds) => ds.filter((d) => d.key !== editor.draft.key))
     setEditor(null)
     await reload()
     setSelection({ id: saved.id, source: 'calendar' })
@@ -144,6 +168,9 @@ export default function JournalPage() {
           </button>
           <button className="btn" onClick={() => openNew({ type: 'flight', startDay: todayKey() })}>✈️ Add flight</button>
           <button className="btn" onClick={() => openNew({ type: 'other', startDay: todayKey() })}>📌 Other cost</button>
+          <button className={`btn ${planOpen ? 'border-violet-300 bg-violet-50' : ''}`} onClick={() => setPlanOpen((o) => !o)}>
+            ✨ Plan with Gemini
+          </button>
         </div>
       </div>
 
@@ -160,51 +187,68 @@ export default function JournalPage() {
 
       {/* Phone: calendar, map, lists. Desktop: calendar and lists left, map right. */}
       <div className="grid gap-6 lg:grid-cols-2 lg:grid-rows-[auto_1fr]">
-        <section className="card p-3 sm:p-4 lg:col-start-1 lg:row-start-1">
-          <Calendar
-            month={month}
-            onMonthChange={setMonth}
-            items={items}
-            selection={selection}
-            pendingStart={pendingStart}
-            onDayClick={onDayClick}
-            onItemClick={(id) => select(id, 'calendar')}
-          />
-          <div className="mt-3 flex min-h-10 flex-wrap items-center gap-2 text-sm">
-            {pendingStart ? (
-              <>
-                <span>
-                  <span className="font-medium">Check-in {formatDate(pendingStart)}.</span>{' '}
-                  <span className="text-slate-500">Now click the check-out day.</span>
-                </span>
-                <span className="ml-auto flex flex-wrap gap-2">
-                  <button className="btn" onClick={() => openNew({ type: 'flight', startDay: pendingStart })}>✈️ Flight this day</button>
-                  <button className="btn" onClick={() => openNew({ type: 'other', startDay: pendingStart })}>📌 Cost this day</button>
-                  <button className="btn-link" onClick={() => setPendingStart(null)}>Cancel</button>
-                </span>
-              </>
-            ) : selectedItem ? (
-              <>
-                <span className="min-w-0">
-                  <span className="font-medium">{TYPE_META[selectedItem.type].icon} {itemLabel(selectedItem)}</span>
-                  {selectedItem.type === 'hotel' && selectedItem.end_datetime && (
-                    <span className="text-slate-500">
-                      {' '}· {formatStayDates(dayKey(selectedItem.start_datetime), dayKey(selectedItem.end_datetime))}
-                      {' '}· {pluralize(daysBetween(dayKey(selectedItem.start_datetime), dayKey(selectedItem.end_datetime)), 'night')}
-                    </span>
-                  )}
-                </span>
-                <span className="ml-auto flex gap-2">
-                  <button className="btn" onClick={() => setEditor({ item: selectedItem })}>Edit</button>
-                  <button className="btn btn-danger" onClick={() => remove(selectedItem)}>Delete</button>
-                  <button className="btn-link px-1" onClick={() => setSelection(null)} aria-label="Clear selection">×</button>
-                </span>
-              </>
-            ) : (
-              <span className="text-slate-500">Click the check-in day, then the check-out day, to note a stay.</span>
-            )}
-          </div>
-        </section>
+        <div className="space-y-4 lg:col-start-1 lg:row-start-1">
+          {planOpen && (
+            <PlanPanel
+              enabled={planEnabled}
+              currency={preferredCurrency(defaultCurrency)}
+              items={items}
+              drafts={drafts}
+              summary={planSummary}
+              onPlanned={onPlanned}
+              onAdd={addDraft}
+              onEdit={(draft) => setEditor({ draft })}
+              onDiscard={(key) => setDrafts((ds) => ds.filter((d) => d.key !== key))}
+              onClose={() => setPlanOpen(false)}
+            />
+          )}
+          <section className="card p-3 sm:p-4">
+            <Calendar
+              drafts={draftEntries}
+              month={month}
+              onMonthChange={setMonth}
+              items={items}
+              selection={selection}
+              pendingStart={pendingStart}
+              onDayClick={onDayClick}
+              onItemClick={(id) => select(id, 'calendar')}
+            />
+            <div className="mt-3 flex min-h-10 flex-wrap items-center gap-2 text-sm">
+              {pendingStart ? (
+                <>
+                  <span>
+                    <span className="font-medium">Check-in {formatDate(pendingStart)}.</span>{' '}
+                    <span className="text-slate-500">Now click the check-out day.</span>
+                  </span>
+                  <span className="ml-auto flex flex-wrap gap-2">
+                    <button className="btn" onClick={() => openNew({ type: 'flight', startDay: pendingStart })}>✈️ Flight this day</button>
+                    <button className="btn" onClick={() => openNew({ type: 'other', startDay: pendingStart })}>📌 Cost this day</button>
+                    <button className="btn-link" onClick={() => setPendingStart(null)}>Cancel</button>
+                  </span>
+                </>
+              ) : selectedItem ? (
+                <>
+                  <span className="min-w-0">
+                    <span className="font-medium">{TYPE_META[selectedItem.type].icon} {itemLabel(selectedItem)}</span>
+                    {selectedItem.type === 'hotel' && selectedItem.end_datetime && (
+                      <span className="text-slate-500">
+                        {' '}· {formatStayDates(dayKey(selectedItem.start_datetime), dayKey(selectedItem.end_datetime))}
+                        {' '}· {pluralize(daysBetween(dayKey(selectedItem.start_datetime), dayKey(selectedItem.end_datetime)), 'night')}
+                      </span>
+                    )}
+                  </span>
+                  <span className="ml-auto flex gap-2">
+                    <button className="btn" onClick={() => setEditor({ item: selectedItem })}>Edit</button>
+                    <button className="btn btn-danger" onClick={() => remove(selectedItem)}>Delete</button>
+                    <button className="btn-link px-1" onClick={() => setSelection(null)} aria-label="Clear selection">×</button>
+                  </span>
+                </>
+              ) : (
+                <span className="text-slate-500">Click the check-in day, then the check-out day, to note a stay.</span>
+              )}
+            </div>
+          </section>
+        </div>
 
         <div className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <div className="space-y-2 lg:sticky lg:top-6">
@@ -250,9 +294,10 @@ export default function JournalPage() {
 
       {editor && (
         <Modal wide onClose={() => setEditor(null)}
-          title={'item' in editor ? `Edit ${TYPE_META[editor.item.type].label.toLowerCase()}` : 'New entry'}>
+          title={'item' in editor ? `Edit ${TYPE_META[editor.item.type].label.toLowerCase()}` : 'draft' in editor ? 'Add suggestion' : 'New entry'}>
           <EntryForm
             item={'item' in editor ? editor.item : undefined}
+            initial={'draft' in editor ? editor.draft.entry : undefined}
             preset={'preset' in editor ? editor.preset : undefined}
             currency={preferredCurrency(defaultCurrency)}
             knownCities={knownCities}

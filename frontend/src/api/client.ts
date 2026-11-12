@@ -6,6 +6,8 @@ import type {
   HotelSearchResult,
   Item,
   ItemInput,
+  PlanResponse,
+  PlanSuggestion,
   Summary,
 } from '../types'
 
@@ -59,6 +61,9 @@ export const api = {
   updateItem: (id: number, input: ItemInput) => request<Item>(`/items/${id}`, json('PUT', input)),
   deleteItem: (id: number) => request<void>(`/items/${id}`, { method: 'DELETE' }),
   getSummary: (year: number | null) => request<Summary>(`/summary${year ? `?year=${year}` : ''}`),
+
+  plan: (prompt: string, currency: string, previous: PlanSuggestion[]) =>
+    request<PlanResponse>('/plan', json('POST', { prompt, currency, previous })),
 
   geocode: (q: string) => request<GeocodeResult[]>(`/geocode?q=${encodeURIComponent(q)}`),
   hotels: (q: string) => request<HotelSearchResult>(`/hotels?q=${encodeURIComponent(q)}`),

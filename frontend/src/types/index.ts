@@ -116,7 +116,33 @@ export interface FlightInfo {
   arrival: FlightEndpoint
 }
 
+export interface PlanSuggestion {
+  type: ItemType
+  start_date: string
+  end_date?: string | null
+  city?: string | null
+  title?: string | null
+  origin_iata?: string | null
+  destination_iata?: string | null
+  estimated_cost?: number | null
+  currency?: string | null
+  reason?: string | null
+}
+
+export interface PlanDraft {
+  reason: string | null
+  entry: ItemInput
+}
+
+export interface PlanResponse {
+  summary: string
+  drafts: PlanDraft[]
+  skipped: number
+  model: string
+}
+
 export interface Features {
+  plan: boolean
   flight_lookup: boolean
   hotel_search: 'google' | 'osm'
   default_currency: string

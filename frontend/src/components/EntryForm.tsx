@@ -14,7 +14,10 @@ export interface EntryPreset {
 }
 
 interface Props {
+  /** Existing entry being edited. */
   item?: Item
+  /** Values for a new entry, e.g. a Gemini suggestion. */
+  initial?: ItemInput
   preset?: EntryPreset
   currency: string
   knownCities: string[]
@@ -47,7 +50,7 @@ interface FormState {
 const CHECK_IN_TIME = '15:00'
 const CHECK_OUT_TIME = '11:00'
 
-function initialState(currency: string, item?: Item, preset?: EntryPreset): FormState {
+function initialState(currency: string, item?: ItemInput, preset?: EntryPreset): FormState {
   const baseDay = item ? dayKey(item.start_datetime) : (preset?.startDay ?? todayKey())
   const state: FormState = {
     type: item?.type ?? preset?.type ?? 'hotel',
@@ -138,8 +141,8 @@ function toInput(form: FormState, amount: number | null): ItemInput {
   }
 }
 
-export default function EntryForm({ item, preset, currency, knownCities, onSubmit, onDelete, onCancel }: Props) {
-  const [form, setForm] = useState<FormState>(() => initialState(currency, item, preset))
+export default function EntryForm({ item, initial, preset, currency, knownCities, onSubmit, onDelete, onCancel }: Props) {
+  const [form, setForm] = useState<FormState>(() => initialState(currency, item ?? initial, preset))
   const [fitKey, setFitKey] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)

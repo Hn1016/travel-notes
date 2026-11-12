@@ -188,7 +188,56 @@ class HotelSearchResult(SQLModel):
     results: list[GeocodeResult]
 
 
+class PlanSuggestion(SQLModel):
+    """One suggestion as Gemini returns it (see services/planner.py for the schema)."""
+
+    type: ItemType
+    start_date: date
+    end_date: date | None = None
+    city: str | None = None
+    title: str | None = None
+    origin_iata: str | None = None
+    destination_iata: str | None = None
+    estimated_cost: float | None = None
+    currency: str | None = None
+    reason: str | None = None
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def blank_is_missing(cls, value):
+        # Gemini fills fields that do not apply with "".
+        return None if isinstance(value, str) and not value.strip() else value
+
+
+class PlanRequest(SQLModel):
+    prompt: str = Field(min_length=3, max_length=2000)
+    currency: str = "CHF"
+    # The current draft plan, when asking Gemini to change it.
+    previous: list[PlanSuggestion] = []
+
+
+class DraftEntry(ItemBase):
+    """A validated entry that is not saved yet; same shape the browser posts to /api/items."""
+
+    amount: float | None = None
+    currency: str
+
+
+class PlanDraft(SQLModel):
+    reason: str | None
+    entry: DraftEntry
+
+
+class PlanResponse(SQLModel):
+    summary: str
+    drafts: list[PlanDraft]
+    # Suggestions that could not be used, e.g. a stay without a city.
+    skipped: int
+    model: str
+
+
 class Features(SQLModel):
+    plan: bool
     flight_lookup: bool
     hotel_search: Literal["google", "osm"]
     default_currency: str

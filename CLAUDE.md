@@ -31,6 +31,10 @@ The user should be able to:
 6. **Map**: numbered stops in order, flights dashed, ground legs solid. Two-way highlighting with
    the list and calendar.
 7. **Year filter** for the summary views.
+8. **Plan with Gemini (optional)**: a free-text request plus the recent/upcoming notes go to
+   Gemini, which answers in a fixed JSON schema. Suggestions become validated draft entries,
+   shown faded in the calendar; only the ones the user adds are saved. Planning is a helper,
+   the notebook stays the core.
 
 ## Out of scope for now
 User accounts/auth, sharing, email import, file attachments, native mobile app, payments,
@@ -48,6 +52,8 @@ currency conversion.
 - **Hotel search (optional)**: Google Places Text Search (New), key `GOOGLE_PLACES_API_KEY` in
   `backend/.env`; Pro-tier fields only, results cached max 30 days (Google terms), "Google Maps"
   attribution shown. Falls back to Nominatim without a key.
+- **Planning (optional)**: Gemini Interactions API (`/v1beta/interactions`, `Api-Revision` header)
+  called with httpx, no SDK. Key `GEMINI_API_KEY`, model `GEMINI_MODEL` (default `gemini-3.8-flash`).
 - **Flight lookup (optional)**: AeroDataBox via RapidAPI, key in `backend/.env`
   (`AERODATABOX_API_KEY`), responses cached in the database. The app works without it.
 
@@ -65,6 +71,7 @@ come first.
 - `GET/POST /api/items`, `PUT/DELETE /api/items/{id}`
 - `GET /api/summary?year=`: journey (stops list), per city, per month, per type, totals, map stops
 - `GET /api/geocode?q=`, `GET /api/hotels?q=`, `GET /api/airports?q=`, `GET /api/flights/lookup?number=&day=`
+- `POST /api/plan`: Gemini suggestions as draft entries (nothing saved)
 - `GET /api/features`: whether flight lookup is configured, default currency
 
 ## Conventions

@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api", tags=["flights"])
 @router.get("/features", response_model=Features)
 def features():
     return Features(
+        plan=bool(config.GEMINI_API_KEY),
         flight_lookup=bool(config.AERODATABOX_API_KEY),
         hotel_search=hotel_provider(),
         default_currency=config.DEFAULT_CURRENCY,

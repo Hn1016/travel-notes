@@ -23,3 +23,6 @@ _load_env_file()
 AERODATABOX_API_KEY = os.environ.get("AERODATABOX_API_KEY", "").strip()
 DEFAULT_CURRENCY = os.environ.get("DEFAULT_CURRENCY", "CHF").strip().upper() or "CHF"
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash"
+GEMINI_FALLBACK_MODEL = os.environ.get("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite").strip()
